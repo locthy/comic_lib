@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ display_name }} - Chapters</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/anTuanVy.png') }}">
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #F1E9E9;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .back-btn {
+            color: #aaa;
+            text-decoration: none;
+            font-size: 1.1em;
+        }
+
+        .back-btn:hover {
+            color: white;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        .chapter-list {
+            width: 100%;
+            max-width: 800px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+
+        .chapter-btn {
+            background-color: #333;
+            color: white;
+            text-decoration: none;
+            padding: 15px 10px;
+            border-radius: 4px;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .chapter-btn:hover {
+            background-color: #555;
+        }
+
+        .chapter-btn.read {
+            background-color: #FAB95B;
+            /* Yellow for read */
+            color: black;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <a href="{{ url_for('index') }}" class="back-btn">&larr; Library</a>
+        <h1>{{ display_name }}</h1>
+    </div>
+
+    <div class="chapter-list">
+        {% for ch in chapters %}
+        <a href="{{ url_for('view_chapter', comic_name=comic_name, chapter_id=ch.id) }}" class="chapter-btn"
+            data-id="{{ ch.id }}">
+            {{ ch.id }}
+        </a>
+        {% else %}
+        <p>No chapters found.</p>
+        {% endfor %}
+    </div>
+
+    <script>
+        const comicName = "{{ comic_name }}";
+        const historyKey = `comic_history_${comicName}`;
+        const history = JSON.parse(localStorage.getItem(historyKey)) || [];
+
+        document.querySelectorAll('.chapter-btn').forEach(btn => {
+            const id = parseInt(btn.dataset.id);
+            if (history.includes(id)) {
+                btn.classList.add('read');
+            }
+        });
+    </script>
+
+</html>

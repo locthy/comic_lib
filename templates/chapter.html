@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ display_name }} - Comic Reader</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/anTuanVy.png') }}">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #eee;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Navigation Bar */
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #2b2b2b;
+
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 1000;
+
+            /* Hidden by default */
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .nav-bar.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .nav-btn {
+            text-decoration: none;
+            color: white;
+            background-color: #444;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .nav-home-btn {
+            padding: 0px;
+            border-radius: 4px;
+        }
+
+        .nav-btn:hover {
+            background-color: #666;
+        }
+
+        .nav-btn.disabled {
+            background-color: #222;
+            color: #555;
+            pointer-events: none;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            font-size: 16px;
+        }
+
+        /* Image Container */
+        .reader-container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #000;
+        }
+
+        .page-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            /* Removes bottom whitespace reserved for text descenders */
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Smooth scrolling for anchor jumps if we added them */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Top Header */
+        .top-bar {
+            position: fixed;
+            /* Changed from absolute to fixed */
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            z-index: 100;
+
+            /* Hidden by default */
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .top-bar.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .back-link {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            margin-left: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="top-bar" id="topBar">
+        <a href="{{ url_for('view_comic', comic_name=comic_name) }}" class="back-link">&larr; Back to {{
+            display_name }}</a>
+    </div>
+
+    <div class="reader-container">
+        {% for img in images %}
+        <img src="{{ url_for('serve_image', comic_name=comic_name, chapter_folder=current_chapter.folder, filename=img) }}"
+            class="page-img" loading="lazy" alt="Page {{ loop.index }}">
+        {% endfor %}
+    </div>
+
+    <!-- Padding to prevent content from being hidden behind the bottom nav -->
+    <div style="height: 80px;"></div>
+
+    <div class="nav-bar" id="navBar">
+        <a href="{{ url_for('index') }}" class="nav-home-btn">
+            <img src="{{ url_for('static', filename='images/icon/home_button_v1.png') }}?v=1" width="40" height="40">
+        </a>
+
+        {% if prev_chapter %}
+        <a href="{{ url_for('view_chapter', comic_name=comic_name, chapter_id=prev_chapter.id) }}" class="nav-btn"
+            id="prev-chapter-btn"> Prev
+        </a>
+        {% else %}
+        <span class="nav-btn disabled">Prev</span>
+        {% endif %}
+
+        <select onchange="location = this.value;">
+            {% for ch in chapters %}
+            <option value="{{ url_for('view_chapter', comic_name=comic_name, chapter_id=ch.id) }}" {% if
+                ch.id==current_chapter.id %}selected{% endif %}>
+                {{ ch.name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        {% if next_chapter %}
+        <a href="{{ url_for('view_chapter', comic_name=comic_name, chapter_id=next_chapter.id) }}" class="nav-btn"
+            id="next-chapter-btn"> Next
+        </a>
+        {% else %}
+        <span class="nav-btn disabled">Next</span>
+        {% endif %}
+
+        <div style="display: flex; align-items: center; gap: 5px; color: white;">
+            <span>Scroll:</span>
+            <input type="number" id="scrollStep" value="500"
+                style="width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #555; background: #333; color: white;">
+            <span>px</span>
+        </div>
+    </div>
+
+    <script>
+        // --- Auto-hide Logic ---
+        const topBar = document.getElementById('topBar');
+        const navBar = document.getElementById('navBar');
+        const SENSITIVITY_PX = 80; // Distance from edge to show bars
+
+        document.addEventListener('mousemove', (e) => {
+            const y = e.clientY;
+            const windowHeight = window.innerHeight;
+
+            // Show top bar if near top
+            if (y < SENSITIVITY_PX) {
+                topBar.classList.add('visible');
+            } else {
+                topBar.classList.remove('visible');
+            }
+
+            // Show bottom bar if near bottom
+            if (y > windowHeight - SENSITIVITY_PX) {
+                navBar.classList.add('visible');
+            } else {
+                navBar.classList.remove('visible');
+            }
+        });
+
+        // Load scroll step from local storage
+        const scrollStepInput = document.getElementById('scrollStep');
+        const savedStep = localStorage.getItem('comicScrollStep');
+        if (savedStep) {
+            scrollStepInput.value = savedStep;
+        }
+
+        // Save on change
+        scrollStepInput.addEventListener('change', () => {
+            localStorage.setItem('comicScrollStep', scrollStepInput.value);
+        });
+
+        // Click to scroll
+        document.body.addEventListener('mousedown', (e) => {
+            // Don't scroll if clicking on nav elements
+            if (e.target.closest('.nav-bar')) return;
+
+            // Don't scroll if clicking on links or inputs
+            if (e.target.tagName === 'A' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+            // --- NEW CODE START (PHẦN MỚI THÊM VÀO) ---
+
+            // Calculate how far we are down the page
+            // (window.innerHeight + window.scrollY) is the bottom of your viewport
+            // document.body.scrollHeight is the total height of the page
+            // We subtract 10px as a buffer just to be safe
+            const isAtBottom = (window.innerHeight + window.scrollY) >= document.body.scrollHeight - 10;
+            const isAtTop = window.scrollY == 0
+
+            //left-click to scroll down, if in the end of page and exist next chapter, go to next chapter
+            if (e.button === 0) {
+                if (isAtBottom) {
+                    const nextBtn = document.getElementById('next-chapter-btn');
+
+                    // If a next button exists (not the last chapter), go to it
+                    if (nextBtn) {
+                        // Flash the button or provide visual feedback if needed, then redirect
+                        window.location.href = nextBtn.href;
+                        return; // Stop the function here so we don't try to scroll
+                    }
+                }
+
+                const step = parseInt(scrollStepInput.value) || 500;
+                window.scrollBy({
+                    top: step,
+                    behavior: 'smooth'
+                });
+            }
+
+            //right-click to scroll up, if in the top of page and exist previous page, go to previous page
+            if (e.button === 2) {
+                if (isAtTop) {
+                    const prevBtn = document.getElementById('prev-chapter-btn');
+
+                    // If a next button exists (not the last chapter), go to it
+                    if (prevBtn) {
+                        // Flash the button or provide visual feedback if needed, then redirect
+                        window.location.href = prevBtn.href;
+                        return; // Stop the function here so we don't try to scroll
+                    }
+                }
+                // --- NEW CODE END ---
+
+                const step = - parseInt(scrollStepInput.value) || -500;
+                window.scrollBy({
+                    top: step,
+                    behavior: 'smooth'
+                });
+            }
+
+            // scroll wheel to go to next page if it is exist
+            if (e.button === 1) {
+                const nextBtn = document.getElementById('next-chapter-btn');
+
+                // If a next button exists (not the last chapter), go to it
+                if (nextBtn) {
+                    // Flash the button or provide visual feedback if needed, then redirect
+                    window.location.href = nextBtn.href;
+                    return; // Stop the function here so we don't try to scroll
+                }
+            }
+
+        });
+
+        // --- Read History Logic ---
+        const comicName = "{{ comic_name }}";
+        const chapterId = Number("{{ current_chapter.id }}");
+        const historyKey = `comic_history_${comicName}`;
+
+        let history = JSON.parse(localStorage.getItem(historyKey)) || [];
+        if (!history.includes(chapterId)) {
+            history.push(chapterId);
+            localStorage.setItem(historyKey, JSON.stringify(history));
+        }
+        //prevent context-menu when right-click
+        document.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+    </script>
+</body>
+
+</html>
