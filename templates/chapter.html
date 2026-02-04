@@ -84,6 +84,7 @@
             max-width: 800px;
             display: flex;
             flex-direction: column;
+            gap: 2px;
             align-items: center;
             background-color: #000;
         }
@@ -95,6 +96,10 @@
             /* Removes bottom whitespace reserved for text descenders */
             margin: 0;
             padding: 0;
+            opacity: 0;
+            /* Start hidden */
+            transition: opacity 0.5s ease-in;
+            /* Fade in effect */
         }
 
         /* Smooth scrolling for anchor jumps if we added them */
@@ -131,6 +136,49 @@
             font-weight: bold;
             margin-left: 20px;
         }
+
+        /* The Skeleton Animation */
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        .skeleton {
+            background: #2b2b2b;
+            /* Base color (Màu nền) */
+            background-image: linear-gradient(90deg,
+                    #2b2b2b 0px,
+                    #3d3d3d 50%,
+                    #2b2b2b 100%);
+            /* The gradient creates the light bar */
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite linear;
+            /* The moving animation */
+        }
+
+        /* Image styles for the transition */
+        .card-img-wrapper {
+            width: 100%;
+            min-height: 800px;
+            /* Fixed height is important for skeletons! */
+            display: block;
+            background-color: #2b2b2b;
+        }
+
+        .card-img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            /* Hidden initially (Ẩn lúc đầu) */
+            transition: opacity 0.5s ease-in;
+            /* Fade in effect */
+        }
     </style>
 </head>
 
@@ -143,13 +191,16 @@
 
     <div class="reader-container">
         {% for img in images %}
-        <img src="{{ url_for('serve_image', comic_name=comic_name, chapter_folder=current_chapter.folder, filename=img) }}"
-            class="page-img" loading="lazy" alt="Page {{ loop.index }}">
+        <div class="card-img-wrapper skeleton">
+            <img src="{{ url_for('serve_image', comic_name=comic_name, chapter_folder=current_chapter.folder, filename=img) }}"
+                class="page-img" loading="lazy" onload="this.style.opacity='1'" alt=" Page {{ loop.index }} ">
+        </div>
         {% endfor %}
     </div>
 
     <!-- Padding to prevent content from being hidden behind the bottom nav -->
-    <div style="height: 80px;"></div>
+    <div style=" height: 80px;">
+    </div>
 
     <div class="nav-bar" id="navBar">
         <a href="{{ url_for('index') }}" class="nav-home-btn">

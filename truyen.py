@@ -11,7 +11,6 @@ init(autoreset=True)
 # --- CONFIGURATION ---
 # Base directory for all downloads
 KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen")
-MAX_CHAPTER = 1
 # Log file for failed downloads
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log_fail.json")
 
