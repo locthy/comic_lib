@@ -10,9 +10,12 @@ from datetime import datetime
 init(autoreset=True)
 # --- CONFIGURATION ---
 # Base directory for all downloads
-KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen")
+#KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen")
+KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen_local")
 # Log file for failed downloads
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log_fail.json")
+TIME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "time.json")
+AVG_TIME = 0
 
 # Headers derived from your logs (Essential for bypassing bot detection)
 HEADERS = {
@@ -22,6 +25,50 @@ HEADERS = {
 }
 BASE_URL = "https://foxtruyen2.com/"
 MAX_RETRY = 3
+
+
+def get_avg_time():
+    # 1. Check if file exists first to avoid try/except overhead
+    if not os.path.exists(TIME_FILE):
+        return 0.0
+
+    try:
+        with open(TIME_FILE, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+            if content:
+                # Direct return
+                return float(json.loads(content).get('time', 0))
+                
+    except (json.JSONDecodeError, ValueError):
+        # Specific error for bad data
+        print(Fore.YELLOW + f"Warning: {TIME_FILE} contains invalid data. Returning 0.")
+        return 0.0
+        
+    except Exception as e:
+        # General error for permission/IO issues
+        print(Fore.RED + f"Error reading avg time: {e}")
+    
+    return 0.0
+
+def save_avg_time(new_time_value):
+    try:
+        # 1. Prepare the data as a Dictionary
+        # Chuẩn bị dữ liệu dưới dạng Từ điển
+        data = {
+            "time": new_time_value
+        }
+        
+        # 2. Open file in Write mode ('w')
+        # Mở tệp ở chế độ Ghi ('w')
+        with open(TIME_FILE, 'w', encoding='utf-8') as f:
+            # 3. Dump the dictionary into the file
+            # Ghi từ điển vào tệp
+            json.dump(data, f, indent=4)
+            
+        
+    except Exception as e:
+        print(f"Error saving time: {e}")
+
 
 def log_failure(comic_name, chapter_num):
     """
@@ -252,6 +299,9 @@ def extract_comic_info(url):
 
 
 def download_chapter(comic_name, comic_id, chapter_num, comic_data):
+
+
+    global AVG_TIME
     # 1. Chuẩn hóa tên để làm folder (lowercase, underscores)
     comic_folder = comic_name.lower().replace("-", "_")
     # Tên slug dùng cho URL (dashes)
@@ -332,10 +382,16 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
                     print(f"{Fore.GREEN}Downloading{Style.RESET_ALL} {img_url} {Fore.GREEN}->{Style.RESET_ALL} {filename}")
                 elif img_res.status_code == 404:
                     break # Hết chương
-            except: continue
+            except:
+                log_failure(comic_folder, i);
+                continue;
+            
 
         # 5. Thống kê
         total_seconds = time.time() - start_time
+        if success_count > 0:
+            AVG_TIME = (AVG_TIME + float(total_seconds) / int(success_count) ) / 2
+
         print(Fore.YELLOW + f"Completed {chapter_num}: {success_count} pages in {total_seconds:.2f}s")
 
     except Exception as e:
@@ -364,6 +420,7 @@ def get_highest_chapter(comic_name):
     return max(chapter_numbers) if chapter_numbers else 0
 
 def run():
+    global AVG_TIME
     comics_data = None
     while True:
         comics_data = get_comic()
@@ -414,8 +471,12 @@ def run():
             download_chapter(comic_name, comic_id, i, comic_data)
             print("Waiting 0.05 seconds...")
             time.sleep(0.05)
+    print(Fore.CYAN + f"Average time to download a picture: {AVG_TIME:.5f}s")
+    save_avg_time(AVG_TIME)
+
 
 if __name__ == "__main__":
+    AVG_TIME = get_avg_time()
     print(Fore.GREEN + "--------------------------------------------------------")
     print(Fore.GREEN + "------------------- COMIC DOWNLOADER -------------------")
     print(Fore.GREEN + "--------------------------------------------------------")

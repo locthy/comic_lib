@@ -8,7 +8,8 @@ app = Flask(__name__)
 
 # Configuration
 # BASE_DIR points to "kho_truyen" which contains comic folders
-BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"static", "kho_truyen")
+#BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"static", "kho_truyen")
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"static", "kho_truyen_local")
 PORT = 5000
 
 # Ensure base dir exists
@@ -26,19 +27,21 @@ def get_comics():
         if os.path.isdir(comic_path):
             json_path = os.path.join(comic_path, 'info.json')
             display_name = item.replace('_', ' ') # Tên mặc định nếu ko có JSON
-                
+            latest_chapter = "";
             if os.path.exists(json_path):
                 try:
                     with open(json_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         # Lấy tên từ JSON (giả sử key là 'name')
                         display_name = data.get('name', display_name)
+                        latest_chapter = data.get('latest_chapter', latest_chapter)
                 except Exception as e:
                     print(f"Lỗi đọc JSON tại {item}: {e}")
             
             comics.append({
                 'name': item,
-                'display_name': display_name
+                'display_name': display_name,
+                'latest_chapter': latest_chapter
             })
             
     return comics
@@ -168,4 +171,4 @@ if __name__ == "__main__":
     ip = args.server_ip
     port = args.server_port
 
-    app.run(debug=True, host=ip, port=port)
+    app.run(debug=True, port=port)
