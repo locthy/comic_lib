@@ -38,10 +38,21 @@ def get_comics():
                 except Exception as e:
                     print(f"Lỗi đọc JSON tại {item}: {e}")
             
+            # Find highest chapter number from Chap_X folders
+            chap_pattern = re.compile(r"^Chap_(\d+)$")
+            chap_nums = [
+                int(m.group(1))
+                for f in os.listdir(comic_path)
+                if os.path.isdir(os.path.join(comic_path, f))
+                for m in [chap_pattern.match(f)] if m
+            ]
+            highest_chapter = max(chap_nums) if chap_nums else 0
+
             comics.append({
                 'name': item,
                 'display_name': display_name,
-                'latest_chapter': latest_chapter
+                'latest_chapter': latest_chapter,
+                'highest_chapter': highest_chapter
             })
             
     return comics
@@ -85,6 +96,7 @@ def get_comic_name(comic_name):
 @app.route('/')
 def index():
     comics = get_comics()
+    comics.sort(key=lambda c: c['highest_chapter'], reverse=True)
     return render_template('index.html', comics=comics)
 
 @app.route('/wtf/')
