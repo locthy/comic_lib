@@ -84,7 +84,7 @@
             max-width: 800px;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 0px;
             align-items: center;
             background-color: #000;
         }
@@ -191,10 +191,10 @@
 
     <div class="reader-container">
         {% for img in images %}
-        <div class="card-img-wrapper skeleton">
-            <img src="{{ url_for('serve_image', comic_name=comic_name, chapter_folder=current_chapter.folder, filename=img) }}"
-                class="page-img" loading="lazy" onload="this.style.opacity='1'" alt=" Page {{ loop.index }} ">
-        </div>
+
+        <img src="{{ url_for('serve_image', comic_name=comic_name, chapter_folder=current_chapter.folder, filename=img) }}"
+            class="page-img" loading="lazy" onload="this.style.opacity='1'" alt=" Page {{ loop.index }} ">
+
         {% endfor %}
     </div>
 

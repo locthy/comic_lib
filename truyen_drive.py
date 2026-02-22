@@ -6,18 +6,14 @@ import re
 from bs4 import BeautifulSoup
 from colorama import Fore, Style, init
 from datetime import datetime
-import threading
-import concurrent.futures
-
 # Khởi tạo (Cần thiết để chạy trên Windows)
 init(autoreset=True)
 # --- CONFIGURATION ---
 # Base directory for all downloads
-#KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen")
-KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen_local")
+KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen")
 # Log file for failed downloads
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log_fail.json")
-TIME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "time.json")
+TIME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "time_drive.json")
 AVG_TIME = 0
 
 # Headers derived from your logs (Essential for bypassing bot detection)
@@ -124,15 +120,17 @@ def get_session():
     session = requests.Session()
     try:
         # 1. Truy cập trang chủ để server thiết lập Cookie ban đầu (GSession)
-        print(f"{Fore.YELLOW}[SYSTEM]{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}Đang kết nối tới {BASE_URL} để lấy Cookie...")
+        print(f"{Fore.YELLOW}[SYSTEM]{Style.RESET_ALL} Đang kết nối tới {BASE_URL} để lấy Cookie...")
         response = session.get(BASE_URL, headers=HEADERS, timeout=15)
         
         # 2. Kiểm tra mã trạng thái
         if response.status_code == 200:
             # Trích xuất Cookie dưới dạng Dictionary để kiểm tra
             cookies = session.cookies.get_dict()
-            if not 'GSession' in cookies:
-                print(f"{Fore.LIGHTCYAN_EX}[INFO]{Style.RESET_ALL} Không tìm thấy GSession, nhưng đã có {len(cookies)} cookies khác.")
+            if 'GSession' in cookies:
+                print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Đã lấy được GSession: {cookies['GSession'][:10]}...")
+            else:
+                print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} Không tìm thấy GSession, nhưng đã có {len(cookies)} cookies khác.")
                 
             return session
         else:
@@ -208,7 +206,7 @@ def get_comic():
     if result:
         try:
             # 3. Truy cập trang chủ để server thiết lập Cookie ban đầu (GSession)
-            #print(f"{Fore.LIGHTGREEN_EX}[SYSTEM]{Style.RESET_ALL} Đang kết nối tới {url} để lấy truyện ...")
+            print(f"{Fore.GREEN}[SYSTEM]{Style.RESET_ALL} Đang kết nối tới {url} để lấy truyện ...")
             response = session.get(url, headers=new_headers, timeout=15)
             
             # 4. Kiểm tra mã trạng thái
@@ -262,12 +260,12 @@ def show_comics(comics_data):
     #EX: https://foxtruyen2.com/truyen-tranh/hac-am-kiem-si-hoi-quy-55122.html
     """
 
-    print(f"{Fore.LIGHTCYAN_EX}----------- {Fore.LIGHTYELLOW_EX}{f"Tìm thấy {len(comics_data)} truyện"} {Fore.LIGHTCYAN_EX}-----------{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}--- Tìm thấy {len(comics_data)} truyện ---{Style.RESET_ALL}")
     for i, comic in enumerate(comics_data, 1):
-        print(f"{i}. Truyện {Fore.LIGHTGREEN_EX}{comic['name']}{Style.RESET_ALL} {Fore.LIGHTCYAN_EX}| {comic['latest_chapter']}")
+        print(f"{i}. Truyện {Fore.GREEN}{comic['name']}{Style.RESET_ALL} {Fore.CYAN}| {comic['latest_chapter']}")
 
-    comic_index = int(input(Fore.LIGHTYELLOW_EX + "Please choose a comic to install (Example: 1) : ").strip())
-    print(Fore.LIGHTGREEN_EX + f"[Successful] {comics_data[comic_index-1]['name']}!")
+    comic_index = int(input(Fore.BLUE + "Please choose a comic to install (Example: 1) : ").strip())
+    print(Fore.GREEN + f"Successful {comics_data[comic_index-1]['name']}!")
     return comics_data[comic_index-1]
 
 
@@ -326,7 +324,7 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
         return
 
     os.makedirs(output_folder, exist_ok=True)
-    #print(Fore.LIGHTCYAN_EX + f"\n=== Starting Chapter {chapter_num} ===")
+    print(Fore.CYAN + f"\n=== Starting Chapter {chapter_num} ===")
     
     session = requests.Session()
     try:
@@ -349,7 +347,7 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
                     if img_data.status_code == 200:
                         with open(thumb_path, 'wb') as f:
                             f.write(img_data.content)
-                        print(Fore.LIGHTGREEN_EX + "Downloaded thumbnail.jpg")
+                        print(Fore.GREEN + "Downloaded thumbnail.jpg")
                 except: pass
 
         # 3. Lấy danh sách ảnh
@@ -369,80 +367,31 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
         # 4. Tải ảnh hàng loạt
         start_time = time.time()
         success_count = 0
-        #print(Fore.YELLOW + f"Found {len(image_urls)}images | Downloading ... ")
+        print(Fore.YELLOW + f"Found {len(image_urls)}images | Downloading ... ")
+        for i, img_url in enumerate(image_urls):
+            filename = os.path.join(output_folder, f"page_{i:04}.jpg")
+            if os.path.exists(filename): continue
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = []
-    
-        # Giao việc cho workers (Submit tasks)
-            for i, img_url in enumerate(image_urls):
-                filename = os.path.join(output_folder, f"page_{i:04}.jpg")
-                
-                # GIAO VIỆC: executor.submit(tên_hàm, tham_số_1, tham_số_2, ...)
-                task = executor.submit(download_single_image, img_url, filename, session)
-                futures.append(task)
-                
-            # Thu thập kết quả khi workers làm xong (Collect results)
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                
-                if result == True:
+            try:
+                img_res = session.get(img_url, headers=HEADERS, timeout=10)
+                if img_res.status_code == 200:
+                    with open(filename, 'wb') as f:
+                        f.write(img_res.content)
                     success_count += 1
-                elif result == "404":
-                    # Lưu ý: Vì đã giao việc (submit) hết 150 tasks rồi, 
-                    # nên ta không thể 'break' dễ dàng như chạy tuần tự được.
-                    # Nhưng kệ nó, worker gặp 404 sẽ tự dừng rất nhanh.
-                    pass
-            
+                    print(f"{Fore.GREEN}Downloading{Style.RESET_ALL} {img_url} {Fore.GREEN}->{Style.RESET_ALL} {filename}")
+                elif img_res.status_code == 404:
+                    break # Hết chương
+            except: continue
 
         # 5. Thống kê
         total_seconds = time.time() - start_time
         if success_count > 0:
             AVG_TIME = (AVG_TIME + float(total_seconds) / int(success_count) ) / 2
 
-        print(Fore.LIGHTGREEN_EX + f"[Success] download chapter {chapter_num} in {Fore.LIGHTWHITE_EX}{total_seconds:.2f}s")
+        print(Fore.YELLOW + f"Completed {chapter_num}: {success_count} pages in {total_seconds:.2f}s")
 
     except Exception as e:
         print(Fore.RED + f"Error: {e}")
-
-def download_single_image(img_url, filename, session):
-    """Một worker sẽ chạy hàm này để tải 1 bức ảnh với cơ chế thử lại (retry)"""
-    if os.path.exists(filename):
-        return True # Đã tồn tại (Already exists)
-    
-    MAX_RETRIES = 3
-    
-    # Lặp đúng 3 lần (Loop exactly 3 times)
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            # timeout=10 đảm bảo nó không bị treo vĩnh viễn
-            img_res = session.get(img_url, headers=HEADERS, timeout=10)
-            
-            if img_res.status_code == 200:
-                with open(filename, 'wb') as f:
-                    f.write(img_res.content)
-                #print(f"{Fore.LIGHTGREEN_EX}Downloaded{Style.RESET_ALL} -> {filename}")
-                return True # Thành công, thoát hàm ngay! (Success, exit function!)
-                
-            elif img_res.status_code == 404:
-                return "404" # Báo hiệu hết chương (End of chapter)
-                
-            else:
-                # Bắt lỗi HTTP khác (vd: 502 Bad Gateway)
-                print(f"{Fore.YELLOW}Lần thử {attempt} thất bại (Mã lỗi {img_res.status_code}) cho {img_url}{Style.RESET_ALL}")
-                
-        except Exception as e:
-            # Bắt lỗi mất kết nối mạng (Network timeout)
-            print(f"{Fore.YELLOW}Lần thử {attempt} rớt mạng cho {img_url}: {e}{Style.RESET_ALL}")
-        
-        # Nếu code chạy đến đây, nghĩa là đã thất bại.
-        # Chờ 2 giây trước khi thử lại (trừ khi đây là lần thử cuối cùng)
-        if attempt < MAX_RETRIES:
-            time.sleep(2)
-            
-    # Nếu vòng lặp chạy xong mà vẫn chưa return, nghĩa là cả 3 lần đều hỏng.
-    print(f"{Fore.RED}Bỏ cuộc! Không thể tải {img_url} sau {MAX_RETRIES} lần thử.{Style.RESET_ALL}")
-    return False
 
 def get_highest_chapter(comic_name):
     """
@@ -466,15 +415,7 @@ def get_highest_chapter(comic_name):
     # Trả về số lớn nhất, nếu danh sách rỗng thì trả về 0
     return max(chapter_numbers) if chapter_numbers else 0
 
-def download_multi():
-        # .map() automatically applies the function to every item in the list
-        # .map() tự động áp dụng hàm cho từng phần tử trong danh sách
-        start_chap, end_chap, comic_name, comic_id, comic_data = test()
-        
-        for i in range(start_chap, end_chap):
-            download_chapter(comic_name, comic_id, i, comic_data)
-
-def test():
+def run():
     global AVG_TIME
     comics_data = None
     while True:
@@ -490,65 +431,9 @@ def test():
     highest_chapter_in_library = get_highest_chapter(comic_name)
     
     if comic_name and comic_id:
-        print(Fore.LIGHTYELLOW_EX + f"Detected Comic: {comic_name} (ID: {comic_id}) | Chapter: {comic_max_chapter}")
+        print(f"Detected Comic: {comic_name} (ID: {comic_id}) | Chapter: {comic_max_chapter}")
         if highest_chapter_in_library > 0 :
-            print(Fore.LIGHTGREEN_EX + f"Library is up to {highest_chapter_in_library} chapters of {comic_data['name']}")
-        # Ask for range
-        start_chap = None
-        end_chap = None
-        while True:
-            start_chap = input(Fore.LIGHTBLUE_EX + f"Start Chapter [Default 1]: ").strip()
-            if not start_chap:
-                start_chap = 1
-                break
-            else:
-                start_chap = int(start_chap)
-                if start_chap < 0 or start_chap > comic_max_chapter:
-                    print(Fore.YELLOW + "Please Enter a valid chapter: ")
-                else:
-                    break
-
-        while True:
-            end_chap = input(Fore.LIGHTCYAN_EX + f"End Chapter [Default {comic_max_chapter}]: ").strip()
-            if not end_chap:
-                end_chap = comic_max_chapter
-                break
-            else:
-                end_chap = int(end_chap)
-                if end_chap < start_chap or end_chap > comic_max_chapter:
-                    print(Fore.YELLOW + "Please Enter a valid chapter: ")
-                else:
-                    break
-            
-        print(Fore.LIGHTGREEN_EX + f"Downloading chapters {start_chap} to {end_chap}...")
-        return start_chap, end_chap+1, comic_name, comic_id, comic_data
-        
-    return 
-
-def run_main(): 
-    #thread_download =  threading.Thread(target=download_multi)
-    #thread_download.start()
-    download_multi()
-
-def run_1():
-    global AVG_TIME
-    comics_data = None
-    while True:
-        comics_data = get_comic()
-        if comics_data:
-            break
-
-    comic_data = show_comics(comics_data)
-    comic_url = comic_data['url']
-    comic_max_chapter = int(comic_data['latest_chapter'].strip().split(" ")[-1])
-    comic_name, comic_id = extract_comic_info(comic_url)
-
-    highest_chapter_in_library = get_highest_chapter(comic_name)
-    
-    if comic_name and comic_id:
-        print(Fore.LIGHTCYAN_EX + f"Detected Comic: {comic_name} (ID: {comic_id}) | Chapter: {comic_max_chapter}")
-        if highest_chapter_in_library > 0 :
-            print(Fore.LIGHTGREEN_EX + f"Library is up to {highest_chapter_in_library} chapters of {comic_data['name']}")
+            print(Fore.GREEN + f"Library is up to {highest_chapter_in_library} chapters of {comic_data['name']}")
         # Ask for range
         start_chap = None
         end_chap = None
@@ -576,23 +461,22 @@ def run_1():
                 else:
                     break
             
-        print(Fore.LIGHTGREEN_EX + f"Downloading chapters {start_chap} to {end_chap}...")
+        print(Fore.GREEN + f"Downloading chapters {start_chap} to {end_chap}...")
             
         for i in range(start_chap, end_chap + 1):
             download_chapter(comic_name, comic_id, i, comic_data)
             print("Waiting 0.05 seconds...")
             time.sleep(0.05)
-    print(Fore.LIGHTCYAN_EX + f"Average time to download a picture: {AVG_TIME:.5f}s")
+    print(Fore.CYAN + f"Average time to download a picture: {AVG_TIME:.5f}s")
     save_avg_time(AVG_TIME)
 
 
 if __name__ == "__main__":
     AVG_TIME = get_avg_time()
-
+    print(Fore.GREEN + "--------------------------------------------------------")
+    print(Fore.GREEN + "------------------- COMIC DOWNLOADER -------------------")
+    print(Fore.GREEN + "--------------------------------------------------------")
     while True:
-        print(Fore.LIGHTGREEN_EX + "--------------------------------------------------------")
-        print(Fore.LIGHTGREEN_EX + "------------------- COMIC DOWNLOADER -------------------")
-        print(Fore.LIGHTGREEN_EX + "--------------------------------------------------------")
-        run_main()
+        run()
 
 

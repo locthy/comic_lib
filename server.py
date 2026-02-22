@@ -8,7 +8,8 @@ app = Flask(__name__)
 
 # Configuration
 # BASE_DIR points to "kho_truyen" which contains comic folders
-BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"static", "kho_truyen")
+#BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"static", "kho_truyen")
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"static", "kho_truyen_local")
 PORT = 5000
 
 # Ensure base dir exists
@@ -26,19 +27,32 @@ def get_comics():
         if os.path.isdir(comic_path):
             json_path = os.path.join(comic_path, 'info.json')
             display_name = item.replace('_', ' ') # Tên mặc định nếu ko có JSON
-                
+            latest_chapter = "";
             if os.path.exists(json_path):
                 try:
                     with open(json_path, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         # Lấy tên từ JSON (giả sử key là 'name')
                         display_name = data.get('name', display_name)
+                        latest_chapter = data.get('latest_chapter', latest_chapter)
                 except Exception as e:
                     print(f"Lỗi đọc JSON tại {item}: {e}")
             
+            # Find highest chapter number from Chap_X folders
+            chap_pattern = re.compile(r"^Chap_(\d+)$")
+            chap_nums = [
+                int(m.group(1))
+                for f in os.listdir(comic_path)
+                if os.path.isdir(os.path.join(comic_path, f))
+                for m in [chap_pattern.match(f)] if m
+            ]
+            highest_chapter = max(chap_nums) if chap_nums else 0
+
             comics.append({
                 'name': item,
-                'display_name': display_name
+                'display_name': display_name,
+                'latest_chapter': latest_chapter,
+                'highest_chapter': highest_chapter
             })
             
     return comics
@@ -82,6 +96,7 @@ def get_comic_name(comic_name):
 @app.route('/')
 def index():
     comics = get_comics()
+    comics.sort(key=lambda c: c['highest_chapter'], reverse=True)
     return render_template('index.html', comics=comics)
 
 @app.route('/wtf/')
@@ -168,4 +183,4 @@ if __name__ == "__main__":
     ip = args.server_ip
     port = args.server_port
 
-    app.run(debug=True, host=ip, port=port)
+    app.run(debug=True, port=port)

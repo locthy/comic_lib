@@ -1,10 +1,10 @@
 import os
 import re
-from truyen import download_chapter
+
 
 # Configuration
 # This should match the path in truyen.py
-BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static","kho_truyen", "ta_la_ta_de")
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static","kho_truyen", "ngu_linh_the_gioi")
 
 def check_empty_chapters():
     if not os.path.exists(BASE_DIR):
