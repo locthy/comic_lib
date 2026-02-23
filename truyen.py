@@ -406,11 +406,6 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
         if success_count > 0:
             AVG_TIME = (AVG_TIME + float(total_seconds) / int(success_count)) / 2
 
-        print(
-            Fore.LIGHTGREEN_EX
-            + f"[Success] download chapter {chapter_num} in {Fore.LIGHTWHITE_EX}{total_seconds:.2f}s"
-        )
-
     except Exception as e:
         print(Fore.RED + f"Error: {e}")
 
@@ -496,6 +491,17 @@ def download_multi():
     for chapter in range(start_chap, end_chap):
         download_chapter(comic_name, comic_id, chapter, comic_data)
 
+    if end_chap - start_chap == 1:
+        print(
+            Fore.LIGHTCYAN_EX
+            + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {start_chap} "
+        )
+    else:
+        print(
+            Fore.LIGHTCYAN_EX
+            + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {start_chap} to {end_chap - 1}"
+        )
+
 
 def handle_io():
     global AVG_TIME
@@ -527,7 +533,7 @@ def handle_io():
         end_chap = None
         while True:
             start_chap = input(
-                Fore.LIGHTBLUE_EX + f"Start Chapter [Default 1]: "
+                Fore.LIGHTBLUE_EX + "Start Chapter [Default 1]: "
             ).strip()
             if not start_chap:
                 start_chap = 1

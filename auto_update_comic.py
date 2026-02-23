@@ -21,7 +21,7 @@ HEADERS = {
 }
 BASE_URL = "https://foxtruyen2.com/"
 CHAPTER_DIFF = 5
-RESET_TIME = 4 * 60 * 60
+RESET_TIME = 1 * 60 * 60
 
 
 def get_data_from_response(res):
@@ -113,31 +113,34 @@ def get_new_chapter():
 
         if 0 < diff < 5:
             for chapter in range(highest_chapter + 1, latest_chapter + 1):
+                download_chapter(comic_name, comic_id, chapter, comic_dic)
+            print()
+            if latest_chapter - highest_chapter == 1:
                 print(
                     Fore.LIGHTCYAN_EX
-                    + f"[Starting] download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Style.RESET_ALL}| Chapter{Fore.LIGHTYELLOW_EX} {chapter} "
+                    + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {highest_chapter + 1} "
                 )
-                download_chapter(comic_name, comic_id, chapter, comic_dic)
+            else:
+                print(
+                    Fore.LIGHTCYAN_EX
+                    + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {highest_chapter + 1} to {latest_chapter}"
+                )
 
 
 def run():
     get_new_chapter()
-    print(Fore.LIGHTCYAN_EX + "Sleep ...............")
     countdown_timer(RESET_TIME)
 
 
 if __name__ == "__main__":
+    print(
+        Fore.LIGHTGREEN_EX + "--------------------------------------------------------"
+    )
+    print(
+        Fore.LIGHTGREEN_EX + "------------------- COMIC DOWNLOADER -------------------"
+    )
+    print(
+        Fore.LIGHTGREEN_EX + "--------------------------------------------------------"
+    )
     while True:
-        print(
-            Fore.LIGHTGREEN_EX
-            + "--------------------------------------------------------"
-        )
-        print(
-            Fore.LIGHTGREEN_EX
-            + "------------------- COMIC DOWNLOADER -------------------"
-        )
-        print(
-            Fore.LIGHTGREEN_EX
-            + "--------------------------------------------------------"
-        )
         run()

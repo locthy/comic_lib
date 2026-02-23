@@ -78,7 +78,6 @@ def save_or_update_json(json_path, new_data):
     new_data: Có thể là một phần (dict nhỏ) hoặc toàn bộ (dict lớn)
     """
     # Bước 1: Đọc dữ liệu cũ nếu file đã tồn tại
-    print(json_path)
     if os.path.exists(json_path):
         with open(json_path, "r", encoding="utf-8") as f:
             try:
