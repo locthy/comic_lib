@@ -3,7 +3,8 @@ import json
 import re
 from colorama import Fore, Style
 import time
-import sys
+from bs4 import BeautifulSoup
+from datetime import datetime
 
 
 def get_comics(BASE_DIR):
@@ -12,6 +13,9 @@ def get_comics(BASE_DIR):
     if not os.path.exists(BASE_DIR):
         return comics
 
+    # Mẫu Regex hỗ trợ số thập phân: Chap_1 hoặc Chap_26_1
+    chap_pattern = re.compile(r"^Chap_(\d+)(?:_(\d+))?$", re.IGNORECASE)
+
     for item in os.listdir(BASE_DIR):
         comic_path = os.path.join(BASE_DIR, item)
         if os.path.isdir(comic_path):
@@ -19,6 +23,7 @@ def get_comics(BASE_DIR):
             display_name = item.replace("_", " ")  # Tên mặc định nếu ko có JSON
             latest_chapter = ""
             url = ""
+
             if os.path.exists(json_path):
                 try:
                     with open(json_path, "r", encoding="utf-8") as f:
@@ -30,17 +35,26 @@ def get_comics(BASE_DIR):
                 except Exception as e:
                     print(f"Lỗi đọc JSON tại {item}: {e}")
 
-            # Find highest chapter number from Chap_X folders
-            chap_pattern = re.compile(r"^Chap_(\d+)$")
-            chap_nums = [
-                int(m.group(1))
-                for f in os.listdir(comic_path)
-                if os.path.isdir(os.path.join(comic_path, f))
-                for m in [chap_pattern.match(f)]
-                if m
-            ]
-            highest_chapter = max(chap_nums) if chap_nums else 0
+            # --- LOGIC CHANGE START ---
+            # Thay thế list comprehension bằng vòng lặp rõ ràng để xử lý số thập phân
+            chap_nums = []
+            for f in os.listdir(comic_path):
+                if os.path.isdir(os.path.join(comic_path, f)):
+                    match = chap_pattern.match(f)
+                    if match:
+                        main_part = match.group(1)
+                        decimal_part = match.group(2)
+                        # Chuyển đổi thành float
+                        if decimal_part:
+                            chap_nums.append(float(f"{main_part}.{decimal_part}"))
+                        else:
+                            chap_nums.append(float(main_part))
 
+            # Tìm chương cao nhất dựa trên giá trị số thực (float)
+            highest_chapter = max(chap_nums) if chap_nums else 0.0
+            # --- LOGIC CHANGE END ---
+            if not isinstance(highest_chapter, float):
+                highest_chapter = int(highest_chapter)
             comics.append(
                 {
                     "name": item,
@@ -73,6 +87,13 @@ def countdown_timer(seconds):
     print(" " * 50, end="\r")
 
 
+def get_date_time():
+    now = datetime.now()
+    # Định dạng: Ngày/Tháng/Năm Giờ:Phút:Giây
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+    return dt_string
+
+
 def save_or_update_json(json_path, new_data):
     """
     new_data: Có thể là một phần (dict nhỏ) hoặc toàn bộ (dict lớn)
@@ -96,3 +117,33 @@ def save_or_update_json(json_path, new_data):
     # Bước 3: Ghi lại vào file
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(current_data, f, ensure_ascii=False, indent=4)
+
+
+def get_data_from_response(res):
+    """Return a list of comics chapter
+        EG: []"26.2", "26", "25", ...]
+        from a response of http request
+
+    Args:
+        res (list): _description_
+    """
+
+    soup = BeautifulSoup(res.text, "html.parser")
+    scripts = soup.find_all("li", class_="item_chap")
+    comic_chapters = []
+
+    for script in scripts:
+        try:
+            # 2. Giải mã chuỗi JSON bên trong thẻ
+            link_tag = script.find("a")
+
+            # 3. Kiểm tra xem đây có phải là thẻ chứa danh sách kết quả (ItemList) không
+            if link_tag and link_tag.text:
+                # 4. Lặp qua các phần tử trong itemListElement để lấy URL
+                chapter = link_tag.text
+                comic_chapters.append(chapter)
+
+        except Exception:
+            continue
+    comic_chapters = list(map(lambda x: x.split(" ")[-1], comic_chapters))
+    return comic_chapters

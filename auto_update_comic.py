@@ -1,13 +1,10 @@
-from truyen import download_chapter, get_highest_chapter, extract_comic_info
+from truyen import download_chapter, extract_comic_info
 import os
 import requests
-import time
 import json
-import re
 from bs4 import BeautifulSoup
 from colorama import Fore, Style, init
-from datetime import datetime
-from ultis import get_comics, countdown_timer
+from ultis import get_comics, countdown_timer, get_date_time, get_data_from_response
 
 init(autoreset=True)
 
@@ -22,37 +19,6 @@ HEADERS = {
 BASE_URL = "https://foxtruyen2.com/"
 CHAPTER_DIFF = 5
 RESET_TIME = 1 * 60 * 60
-
-
-def get_data_from_response(res):
-    """Return a list of comics url
-        EG: "https://foxtruyen2.com/truyen-tranh/yuusha-izoku-57826-chap-4.html"
-        from a response of http request
-
-    Args:
-        res (list): _description_
-    """
-
-    soup = BeautifulSoup(res.text, "html.parser")
-    scripts = soup.find_all("script", type="application/ld+json")
-    comic_urls = []
-
-    for script in scripts:
-        try:
-            # 2. Giải mã chuỗi JSON bên trong thẻ
-            data = json.loads(script.string)
-
-            # 3. Kiểm tra xem đây có phải là thẻ chứa danh sách kết quả (ItemList) không
-            if data.get("@type") == "ItemList":
-                # 4. Lặp qua các phần tử trong itemListElement để lấy URL
-                for item in data.get("itemListElement", []):
-                    url = item.get("url")
-                    if url:
-                        comic_urls.append(url)
-
-        except (json.JSONDecodeError, TypeError):
-            continue
-    return comic_urls
 
 
 def extract_comic_infoss(url):
@@ -99,31 +65,35 @@ def get_new_chapter():
     for comic_data in comics_data:
         url = comic_data["url"]
         highest_chapter = int(comic_data["highest_chapter"])
+        comic_name, comic_id = extract_comic_info(url)
 
         response = session.get(url, headers=HEADERS, timeout=15)
         if response.status_code != 200:
-            print(Fore.RED + f"Failed to load page: {response.status_code}")
+            print(
+                Fore.RED + f"Failed to fetch comic {comic_name}: {response.status_code}"
+            )
             return
 
         detail_data = get_data_from_response(response)
         latest_chapter = len(detail_data)
-        comic_name, comic_id = extract_comic_info(url)
+
         comic_dic = {"latest_chapter": f"Chương {latest_chapter}"}
         diff = latest_chapter - highest_chapter
 
         if 0 < diff < 5:
             for chapter in range(highest_chapter + 1, latest_chapter + 1):
                 download_chapter(comic_name, comic_id, chapter, comic_dic)
-            print()
+
+            date_time = get_date_time()
             if latest_chapter - highest_chapter == 1:
                 print(
                     Fore.LIGHTCYAN_EX
-                    + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {highest_chapter + 1} "
+                    + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {highest_chapter + 1} "
                 )
             else:
                 print(
                     Fore.LIGHTCYAN_EX
-                    + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {highest_chapter + 1} to {latest_chapter}"
+                    + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {highest_chapter + 1} to {latest_chapter}"
                 )
 
 

@@ -8,7 +8,7 @@ from colorama import Fore, Style, init
 from datetime import datetime
 import threading
 import concurrent.futures
-from ultis import save_or_update_json
+from ultis import save_or_update_json, get_date_time, get_data_from_response
 
 # Khởi tạo (Cần thiết để chạy trên Windows)
 init(autoreset=True)
@@ -30,48 +30,7 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
 }
 BASE_URL = "https://foxtruyen2.com/"
-MAX_RETRY = 3
-
-
-def get_avg_time():
-    # 1. Check if file exists first to avoid try/except overhead
-    if not os.path.exists(TIME_FILE):
-        return 0.0
-
-    try:
-        with open(TIME_FILE, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if content:
-                # Direct return
-                return float(json.loads(content).get("time", 0))
-
-    except (json.JSONDecodeError, ValueError):
-        # Specific error for bad data
-        print(Fore.YELLOW + f"Warning: {TIME_FILE} contains invalid data. Returning 0.")
-        return 0.0
-
-    except Exception as e:
-        # General error for permission/IO issues
-        print(Fore.RED + f"Error reading avg time: {e}")
-
-    return 0.0
-
-
-def save_avg_time(new_time_value):
-    try:
-        # 1. Prepare the data as a Dictionary
-        # Chuẩn bị dữ liệu dưới dạng Từ điển
-        data = {"time": new_time_value}
-
-        # 2. Open file in Write mode ('w')
-        # Mở tệp ở chế độ Ghi ('w')
-        with open(TIME_FILE, "w", encoding="utf-8") as f:
-            # 3. Dump the dictionary into the file
-            # Ghi từ điển vào tệp
-            json.dump(data, f, indent=4)
-
-    except Exception as e:
-        print(f"Error saving time: {e}")
+MAX_RETRIES = 3
 
 
 def log_failure(comic_name, chapter_num):
@@ -121,7 +80,7 @@ def log_failure(comic_name, chapter_num):
         print(Fore.RED + f"Failed to log failure: {e}")
 
 
-def get_session():
+def get_cookie():
     """
     Get cookies (session)
     return cookie
@@ -155,9 +114,9 @@ def get_session():
         return None
 
 
-def get_comic_data(soup):
+def get_comic_parse_data(soup):
     """
-    Get comic info: Name, URL, Cover, Chap
+    Get a list of dictionary contains: name, url, cover, latest_chapter
     @param: soup - the DOM HTML after parsing using bs4
     Return list of dictionary : comics_data:[{
             "name": name,
@@ -205,7 +164,7 @@ def get_comic():
     comic_code = comic_name.replace(" ", "%20")
     url = BASE_URL + "tim-kiem.html?q=" + comic_code
 
-    result = get_session()
+    result = get_cookie()
     cookie_dict = result.cookies.get_dict()
     session = requests.Session()
     new_headers = HEADERS.copy()
@@ -225,7 +184,7 @@ def get_comic():
             if response.status_code == 200:
                 # Trích xuất Cookie dưới dạng Dictionary để kiểm tra
                 soup = BeautifulSoup(response.text, "html.parser")
-                comics_data = get_comic_data(soup)
+                comics_data = get_comic_parse_data(soup)
                 return comics_data
 
             else:
@@ -309,14 +268,15 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
     comic_folder = comic_name.lower().replace("-", "_")
     # Tên slug dùng cho URL (dashes)
     slug = comic_name.lower().replace("_", "-")
-
+    url_chap = str(chapter_num).replace(".", "-")
+    folder_chap = str(chapter_num).replace(".", "_")
     chapter_url = (
-        f"https://foxtruyen2.com/truyen-tranh/{slug}-{comic_id}-chap-{chapter_num}.html"
+        f"https://foxtruyen2.com/truyen-tranh/{slug}-{comic_id}-chap-{url_chap}.html"
     )
 
     # Định nghĩa các đường dẫn
     comic_root = os.path.join(KHO_TRUYEN_DIR, comic_folder)
-    output_folder = os.path.join(comic_root, f"Chap_{chapter_num}")
+    output_folder = os.path.join(comic_root, f"Chap_{folder_chap}")
     json_path = os.path.join(comic_root, "info.json")
 
     # Tạo thư mục gốc và lưu info.json (Chỉ làm nếu chưa có hoặc cập nhật)
@@ -325,9 +285,6 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
     save_or_update_json(json_path, comic_data)
 
     # Kiểm tra xem chương này đã tải chưa (Skip nếu > 5 ảnh)
-    if os.path.exists(output_folder) and len(os.listdir(output_folder)) > 5:
-        print(Fore.YELLOW + f"Skipping Chapter {chapter_num}, already populated.")
-        return
 
     os.makedirs(output_folder, exist_ok=True)
     # print(Fore.LIGHTCYAN_EX + f"\n=== Starting Chapter {chapter_num} ===")
@@ -337,7 +294,11 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
         # CHỈ GỌI GET 1 LẦN DUY NHẤT
         response = session.get(chapter_url, headers=HEADERS, timeout=15)
         if response.status_code != 200:
-            print(Fore.RED + f"Failed to load page: {response.status_code}")
+            print(
+                Fore.RED
+                + f"Failed to fetch comic: {comic_name} | chapter: {chapter_num} {response.status_code}"
+            )
+            print(chapter_url)
             return
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -407,16 +368,14 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
             AVG_TIME = (AVG_TIME + float(total_seconds) / int(success_count)) / 2
 
     except Exception as e:
-        print(Fore.RED + f"Error: {e}")
+        print(Fore.RED + f"Error: {e} {chapter_num}")
 
 
 def download_single_image(img_url, filename, session):
     """Một worker sẽ chạy hàm này để tải 1 bức ảnh với cơ chế thử lại (retry)"""
     if os.path.exists(filename):
         return True  # Đã tồn tại (Already exists)
-
     MAX_RETRIES = 3
-
     # Lặp đúng 3 lần (Loop exactly 3 times)
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -456,11 +415,27 @@ def download_single_image(img_url, filename, session):
     return False
 
 
+def get_chapters(url):
+    """
+    return a list of downloadable chapter of the comic EG: ["26.2", "26", "25", ...]
+    @param url: (EG) "https://foxtruyen2.com/truyen-tranh/ta-la-ta-de-36199.html"
+    """
+    session = requests.Session()
+    response = session.get(url, headers=HEADERS, timeout=10)
+    comic_name, comic_id = extract_comic_info(url)
+    if response.status_code != 200:
+        print(Fore.RED + f"Failed to fetch comic {comic_name}: {response.status_code}")
+        return
+
+    result = get_data_from_response(response)
+    return result
+
+
 def get_highest_chapter(comic_name):
     """
-    Find the highest chapter of comic
+    Find the highest available chapter of comic in storage (Count the highest num of the folder name)
     @param comic_name: comic name format (ta-la-ta-de)
-    return int(highest_num)
+    return int | chap_num ? exist : 0
     """
     comic_path = os.path.join(KHO_TRUYEN_DIR, comic_name.replace("-", "_"))
     # 1. Create the folder if it doesn't exist
@@ -486,20 +461,42 @@ def get_highest_chapter(comic_name):
 def download_multi():
     # .map() automatically applies the function to every item in the list
     # .map() tự động áp dụng hàm cho từng phần tử trong danh sách
-    start_chap, end_chap, comic_name, comic_id, comic_data = handle_io()
+    start_chap, end_chap, comic_name, comic_id, comic_data, comic_url = handle_io()
+    # get the list of downloadable chapters
+    chapter_list = get_chapters(comic_url)[::-1]
+    highest_chap = get_highest_chapter(comic_name)
+    if highest_chap > 0:
+        target_index = -1
 
-    for chapter in range(start_chap, end_chap):
+        # 1. Search for the index of the latest chapter
+        # 1. Tìm kiếm chỉ mục của chương mới nhất
+        for index, chap_string in enumerate(chapter_list):
+            # We convert latest_chap to a string to check if it's inside the URL/title
+            # Chúng ta chuyển đổi latest_chap thành chuỗi để kiểm tra xem nó có nằm trong URL/tiêu đề không
+            if str(highest_chap) in chap_string:
+                target_index = index
+                break  # Found it! Stop searching. / Tìm thấy rồi! Dừng tìm kiếm.
+
+        # 2. Slice the list if we successfully found the index
+        # 2. Cắt danh sách nếu chúng ta tìm thấy chỉ mục thành công
+        if target_index != -1:
+            # We use target_index + 1 to grab everything AFTER the latest chapter
+            # Chúng ta dùng target_index + 1 để lấy mọi thứ SAU chương mới nhất
+            chapter_list = chapter_list[target_index + 1 :]
+
+    for chapter in reversed(chapter_list):
         download_chapter(comic_name, comic_id, chapter, comic_data)
 
-    if end_chap - start_chap == 1:
+    date_time = get_date_time()
+    if int(float(chapter_list[0])) - int(float(chapter_list[-1])) == 0:
         print(
             Fore.LIGHTCYAN_EX
-            + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {start_chap} "
+            + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {chapter_list[0]} "
         )
     else:
         print(
             Fore.LIGHTCYAN_EX
-            + f"[SUCCESS] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {start_chap} to {end_chap - 1}"
+            + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {chapter_list[-1]} to {chapter_list[0]}"
         )
 
 
@@ -507,13 +504,15 @@ def handle_io():
     global AVG_TIME
     comics_data = None
     while True:
+        # Get the list of dictionaries of comics data that user search
         comics_data = get_comic()
         if comics_data:
             break
-
+    # get a comic data in dictionary that user want
     comic_data = show_comics(comics_data)
     comic_url = comic_data["url"]
-    comic_max_chapter = int(comic_data["latest_chapter"].strip().split(" ")[-1])
+    # set the latest_chapter: "chuong 67.2" -> "67.2"
+    comic_max_chapter = int(float(comic_data["latest_chapter"].strip().split(" ")[-1]))
     comic_name, comic_id = extract_comic_info(comic_url)
 
     highest_chapter_in_library = get_highest_chapter(comic_name)
@@ -533,10 +532,11 @@ def handle_io():
         end_chap = None
         while True:
             start_chap = input(
-                Fore.LIGHTBLUE_EX + "Start Chapter [Default 1]: "
+                Fore.LIGHTBLUE_EX
+                + f"Start Chapter [Default {highest_chapter_in_library}]: "
             ).strip()
             if not start_chap:
-                start_chap = 1
+                start_chap = highest_chapter_in_library
                 break
             else:
                 start_chap = int(start_chap)
@@ -560,9 +560,10 @@ def handle_io():
                     break
 
         print(
-            Fore.LIGHTGREEN_EX + f"Downloading chapters {start_chap} to {end_chap}..."
+            Fore.LIGHTGREEN_EX
+            + f"Downloading {comic_name} | from chapters {start_chap} to {end_chap}..."
         )
-        return start_chap, end_chap + 1, comic_name, comic_id, comic_data
+        return start_chap, end_chap, comic_name, comic_id, comic_data, comic_url
 
     return
 
@@ -573,73 +574,7 @@ def run_main():
     download_multi()
 
 
-def run_1():
-    global AVG_TIME
-    comics_data = None
-    while True:
-        comics_data = get_comic()
-        if comics_data:
-            break
-
-    comic_data = show_comics(comics_data)
-    comic_url = comic_data["url"]
-    comic_max_chapter = int(comic_data["latest_chapter"].strip().split(" ")[-1])
-    comic_name, comic_id = extract_comic_info(comic_url)
-
-    highest_chapter_in_library = get_highest_chapter(comic_name)
-
-    if comic_name and comic_id:
-        print(
-            Fore.LIGHTCYAN_EX
-            + f"Detected Comic: {comic_name} (ID: {comic_id}) | Chapter: {comic_max_chapter}"
-        )
-        if highest_chapter_in_library > 0:
-            print(
-                Fore.LIGHTGREEN_EX
-                + f"Library is up to {highest_chapter_in_library} chapters of {comic_data['name']}"
-            )
-        # Ask for range
-        start_chap = None
-        end_chap = None
-        while True:
-            start_chap = input(f"Start Chapter [Default 1]: ").strip()
-            if not start_chap:
-                start_chap = 1
-                break
-            else:
-                start_chap = int(start_chap)
-                if start_chap < 0 or start_chap > comic_max_chapter:
-                    print(Fore.YELLOW + "Please Enter a valid chapter: ")
-                else:
-                    break
-
-        while True:
-            end_chap = input(f"End Chapter [Default {comic_max_chapter}]: ").strip()
-            if not end_chap:
-                end_chap = comic_max_chapter
-                break
-            else:
-                end_chap = int(end_chap)
-                if end_chap < start_chap or end_chap > comic_max_chapter:
-                    print(Fore.YELLOW + "Please Enter a valid chapter: ")
-                else:
-                    break
-
-        print(
-            Fore.LIGHTGREEN_EX + f"Downloading chapters {start_chap} to {end_chap}..."
-        )
-
-        for i in range(start_chap, end_chap + 1):
-            download_chapter(comic_name, comic_id, i, comic_data)
-            print("Waiting 0.05 seconds...")
-            time.sleep(0.05)
-    print(Fore.LIGHTCYAN_EX + f"Average time to download a picture: {AVG_TIME:.5f}s")
-    save_avg_time(AVG_TIME)
-
-
 if __name__ == "__main__":
-    AVG_TIME = get_avg_time()
-
     while True:
         print(
             Fore.LIGHTGREEN_EX

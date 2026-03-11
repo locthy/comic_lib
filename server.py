@@ -1,7 +1,7 @@
 import os
 import re
 import argparse
-from flask import Flask, render_template, send_from_directory, redirect, url_for, abort
+from flask import Flask, render_template, send_from_directory, abort
 from ultis import get_comics
 
 app = Flask(__name__)
@@ -30,13 +30,20 @@ def get_chapters(comic_name):
     if not os.path.exists(comic_path):
         return []
 
-    pattern = re.compile(r"Chap_(\d+)$")
+    pattern = re.compile(r"^Chap_(\d+)(?:[_\.-](\d+))?$", re.IGNORECASE)
 
     for item in os.listdir(comic_path):
         if os.path.isdir(os.path.join(comic_path, item)):
             match = pattern.match(item)
+
             if match and len(os.listdir(os.path.join(comic_path, item))) > 2:
-                chapter_num = int(match.group(1))
+                main_part = match.group(1)
+                decimal_part = match.group(2)
+
+                if decimal_part:
+                    chapter_num = float(f"{main_part}.{decimal_part}")
+                else:
+                    chapter_num = float(main_part)
                 chapters.append(
                     {
                         "id": chapter_num,
@@ -89,10 +96,20 @@ def view_comic(comic_name):
     )
 
 
-@app.route("/read/<comic_name>/<int:chapter_id>")
+# Đổi <float:chapter_id> thành <string:chapter_id>
+@app.route("/read/<comic_name>/<string:chapter_id>")
 def view_chapter(comic_name, chapter_id):
+
+    # 1. Ép kiểu an toàn từ chuỗi URL sang số thực (Float)
+    try:
+        target_id = float(chapter_id)
+    except ValueError:
+        return abort(404, description="Invalid chapter ID")
+
     chapters = get_chapters(comic_name)
-    current_chapter = next((c for c in chapters if c["id"] == chapter_id), None)
+
+    # 2. Ép kiểu c["id"] sang float khi so sánh để tránh lỗi "26.2" == 26.2 (String vs Float)
+    current_chapter = next((c for c in chapters if float(c["id"]) == target_id), None)
 
     display_name = get_comic_name(comic_name)
     if not current_chapter:
@@ -105,7 +122,7 @@ def view_chapter(comic_name, chapter_id):
         chapters[current_index + 1] if current_index < len(chapters) - 1 else None
     )
 
-    # Get images in the chapter folder
+    # Get images in the chapter folder (Folder path will now be exactly what get_chapters found)
     chapter_path = os.path.join(BASE_DIR, comic_name, current_chapter["folder"])
     images = []
     if os.path.exists(chapter_path):
