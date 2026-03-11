@@ -83,8 +83,10 @@
     <div class="chapter-list">
         {% for ch in chapters %}
         <a href="{{ url_for('view_chapter', comic_name=comic_name, chapter_id=ch.id) }}" class="chapter-btn"
-            data-id="{{ ch.id }}">
-            {{ ch.id }}
+            data-id="{{ ch.id | int if ch.id % 1 == 0 else ch.id }}">
+
+            {{ ch.id | int if ch.id % 1 == 0 else ch.id }}
+
         </a>
         {% else %}
         <p>No chapters found.</p>
@@ -97,7 +99,7 @@
         const history = JSON.parse(localStorage.getItem(historyKey)) || [];
 
         document.querySelectorAll('.chapter-btn').forEach(btn => {
-            const id = parseInt(btn.dataset.id);
+            const id = parseFloat(btn.dataset.id);
             if (history.includes(id)) {
                 btn.classList.add('read');
             }

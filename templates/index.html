@@ -101,7 +101,8 @@
             <div class="card-content">
                 <div class="card-title">{{ comic.display_name }}</div>
                 <div class="latest_chapter"> {{comic.latest_chapter}} </div>
-                <div class="chapter_count"> Chap {{ comic.highest_chapter }}</div>
+                <div class="chapter_count"> Chap {{ comic.highest_chapter | int if comic.highest_chapter % 1 == 0 else
+                    comic.highest_chapter }}</div>
             </div>
         </a>
         {% else %}
