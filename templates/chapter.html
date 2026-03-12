@@ -349,6 +349,72 @@
 
         });
 
+        document.addEventListener('keydown', (e) => {
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp' | e.key === "ArrowRight" || e.key === "ArrowLeft") {
+
+                e.preventDefault(); // stop browser default scrolling
+
+                const isAtBottom = (window.innerHeight + window.scrollY) >= document.body.scrollHeight - 10;
+                const isAtTop = window.scrollY === 0;
+
+                const step = parseInt(scrollStepInput.value) || 500;
+
+                // Arrow Down
+                if (e.key === 'ArrowDown') {
+
+                    if (isAtBottom) {
+                        const nextBtn = document.getElementById('next-chapter-btn');
+
+                        if (nextBtn) {
+                            window.location.href = nextBtn.href;
+                            return;
+                        }
+                    }
+
+                    window.scrollBy({
+                        top: step,
+                        behavior: 'smooth'
+                    });
+                }
+
+                // Arrow Up
+                if (e.key === 'ArrowUp') {
+
+                    if (isAtTop) {
+                        const prevBtn = document.getElementById('prev-chapter-btn');
+
+                        if (prevBtn) {
+                            window.location.href = prevBtn.href;
+                            return;
+                        }
+                    }
+
+                    window.scrollBy({
+                        top: -step,
+                        behavior: 'smooth'
+                    });
+                }
+
+                if (e.key === "ArrowRight") {
+                    const nextBtn = document.getElementById('next-chapter-btn');
+
+                    if (nextBtn) {
+                        window.location.href = nextBtn.href
+                        return
+                    }
+                }
+
+                if (e.key === "ArrowLeft") {
+                    const prevBtn = document.getElementById('prev-chapter-btn');
+                    if (prevBtn) {
+                        window.location.href = prevBtn.href
+                        return
+                    }
+                }
+            }
+        });
+
         // --- Read History Logic ---
         const comicName = "{{ comic_name }}";
         const chapterId = Number("{{ current_chapter.id }}");
