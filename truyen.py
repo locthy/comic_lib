@@ -8,6 +8,7 @@ from colorama import Fore, Style, init
 from datetime import datetime
 import threading
 import concurrent.futures
+import bisect
 from ultis import save_or_update_json, get_date_time, get_data_from_response
 
 # Khởi tạo (Cần thiết để chạy trên Windows)
@@ -457,15 +458,21 @@ def get_highest_chapter(comic_name):
     # Trả về số lớn nhất, nếu danh sách rỗng thì trả về 0
     return max(chapter_numbers) if chapter_numbers else 0
 
+def getListOfDownloadChapter (startChap, endChapter, listComicChapter):
+    listComicChapter = [float(x) for x in listComicChapter]
+
+    startChapIndex = bisect.bisect_right(listComicChapter, startChap)
+    endChapIndex = bisect.bisect_right(listComicChapter, endChapter)
+    return listComicChapter[startChapIndex:endChapIndex]
 
 def download_multi():
     # .map() automatically applies the function to every item in the list
     # .map() tự động áp dụng hàm cho từng phần tử trong danh sách
     start_chap, end_chap, comic_name, comic_id, comic_data, comic_url = handle_io()
     # get the list of downloadable chapters
-    chapter_list = get_chapters(comic_url)[::-1]
+    chapter_list = getListOfDownloadChapter(start_chap, end_chap, get_chapters(comic_url)[::-1]) #reverse to [1, 2, 3] instead of [3, 2, 1]
     highest_chap = get_highest_chapter(comic_name)
-    if highest_chap > 0:
+    if highest_chap > 0 and not end_chap < highest_chap:
         target_index = -1
 
         # 1. Search for the index of the latest chapter
@@ -484,14 +491,19 @@ def download_multi():
             # Chúng ta dùng target_index + 1 để lấy mọi thứ SAU chương mới nhất
             chapter_list = chapter_list[target_index + 1 :]
 
-    for chapter in reversed(chapter_list):
+    for chapter in (chapter_list):
         download_chapter(comic_name, comic_id, chapter, comic_data)
 
     date_time = get_date_time()
-    if int(float(chapter_list[0])) - int(float(chapter_list[-1])) == 0:
+    if len(chapter_list) == 0:
         print(
             Fore.LIGHTCYAN_EX
-            + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {chapter_list[0]} "
+            + f"[{date_time}] {Fore.LIGHTYELLOW_EX} There is no new chapter!!"
+        )
+    elif(len(chapter_list) == 1):
+        print(
+            Fore.LIGHTCYAN_EX
+            + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX} Chapter {chapter_list[0]}"
         )
     else:
         print(
