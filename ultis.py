@@ -23,6 +23,7 @@ def get_comics(BASE_DIR):
             display_name = item.replace("_", " ")  # Tên mặc định nếu ko có JSON
             latest_chapter = ""
             url = ""
+            time_update = ""
 
             if os.path.exists(json_path):
                 try:
@@ -32,11 +33,14 @@ def get_comics(BASE_DIR):
                         display_name = data.get("name", display_name)
                         latest_chapter = data.get("latest_chapter", latest_chapter)
                         url = data.get("url", url)
+                        time_update = data.get("time_update", time_update)
+
                 except Exception as e:
                     print(f"Lỗi đọc JSON tại {item}: {e}")
 
             # --- LOGIC CHANGE START ---
             # Thay thế list comprehension bằng vòng lặp rõ ràng để xử lý số thập phân
+
             chap_nums = []
             for f in os.listdir(comic_path):
                 if os.path.isdir(os.path.join(comic_path, f)):
@@ -62,6 +66,7 @@ def get_comics(BASE_DIR):
                     "latest_chapter": latest_chapter,
                     "highest_chapter": highest_chapter,
                     "url": url,
+                    "time_update": time_update,
                 }
             )
 
@@ -109,6 +114,7 @@ def save_or_update_json(json_path, new_data):
         # Nếu file chưa tồn tại, bắt đầu bằng một dict trống
         current_data = {}
 
+    current_data["time_update"] = int(time.time())
     # Bước 2: Hợp nhất dữ liệu (Đây là phần quan trọng nhất)
     # Nếu key đã có -> nó sẽ cập nhật giá trị mới
     # Nếu key chưa có -> nó sẽ thêm key mới vào
@@ -119,7 +125,7 @@ def save_or_update_json(json_path, new_data):
         json.dump(current_data, f, ensure_ascii=False, indent=4)
 
 
-def get_data_from_response(res):
+def get_chapter_list_from_response(res):
     """Return a list of comics chapter
         EG: []"26.2", "26", "25", ...]
         from a response of http request
@@ -147,3 +153,21 @@ def get_data_from_response(res):
             continue
     comic_chapters = list(map(lambda x: x.split(" ")[-1], comic_chapters))
     return comic_chapters
+
+
+def get_genre_list_from_response(res):
+    """Return a list of comics chapter
+        EG: []"manhwa", "lich us",...]
+        from a response of http request
+
+    Args:
+        res (list): _description_
+    """
+
+    soup = BeautifulSoup(res.text, "html.parser")
+    genre_tags = soup.find_all("a", class_="clblue")
+
+    # Extract the text from each tag and strip any extra whitespace
+    # Trích xuất văn bản từ mỗi thẻ và xóa bỏ khoảng trắng thừa
+    genres = [tag.text.strip() for tag in genre_tags]
+    return genres

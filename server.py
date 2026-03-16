@@ -1,7 +1,7 @@
 import os
 import re
 import argparse
-from flask import Flask, render_template, send_from_directory, abort
+from flask import Flask, render_template, send_from_directory, abort, jsonify, request
 from ultis import get_comics
 
 app = Flask(__name__)
@@ -72,9 +72,26 @@ def get_comic_name(comic_name):
 
 @app.route("/")
 def index():
-    comics = get_comics(BASE_DIR)
-    comics.sort(key=lambda c: c["highest_chapter"], reverse=True)
-    return render_template("index.html", comics=comics)
+    # Only return the template. JS will handle the data later.
+    # Chỉ trả về template. JS sẽ xử lý dữ liệu sau.
+    return render_template("index.html")
+
+
+@app.route("/api/comics")
+def api_get_comics():
+    comic_data = get_comics(BASE_DIR)
+    sort_method = request.args.get("sort", "latest")
+
+    if sort_method == "chapter":
+        sorted_data = sorted(
+            comic_data, key=lambda c: float(c.get("highest_chapter") or 0), reverse=True
+        )
+    else:
+        sorted_data = sorted(
+            comic_data, key=lambda c: float(c.get("time_update") or 0), reverse=True
+        )
+
+    return jsonify(sorted_data)
 
 
 @app.route("/wtf/")

@@ -89,12 +89,77 @@
             padding: 2px 5px 8px;
             text-align: center;
         }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            /* Removes underline from <a> tags / Bỏ gạch chân */
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            /* Rounded corners / Bo góc */
+            transition: all 0.3s ease;
+            /* Smooth animations / Hiệu ứng mượt mà */
+            font-family: Arial, sans-serif;
+        }
+
+        /* Primary Button Color / Màu nút chính */
+        .btn-primary {
+            background-color: #007bff;
+            /* Blue / Xanh dương */
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+            /* Darker blue on hover / Xanh đậm hơn khi di chuột */
+            transform: translateY(-2px);
+            /* Slight lift effect / Hiệu ứng nhấc lên nhẹ */
+            box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+            /* Soft shadow / Đổ bóng nhẹ */
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+            /* Pushes back down on click / Nhấn xuống khi click */
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+        }
+
+        /* Secondary Button Color / Màu nút phụ */
+        .btn-secondary {
+            background-color: #6c757d;
+            /* Gray / Xám */
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+        }
+
+        .btn-secondary:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(108, 117, 125, 0.2);
+        }
     </style>
 </head>
 
 <body>
     <h1>My Comics Library</h1>
-    <div class="grid">
+    <div class="sort-buttons" style="margin-bottom: 20px;">
+        <button class="btn btn-primary" onclick="sortComics('latest')">Sort by Latest Date</button>
+        <button class="btn btn-primary" onclick="sortComics('chapter')">Sort by Highest Chapter</button>
+    </div>
+
+    <div class="grid" id="comic-grid">
+    </div>
+
+    <!-- <div class="grid">
         {% for comic in comics %}
         <a href="{{ url_for('view_comic', comic_name=comic.name) }}" class="card">
             <img src="/static/kho_truyen_local/{{ comic.name }}/thumbnail.jpg" alt="Cover">
@@ -108,7 +173,69 @@
         {% else %}
         <p>No comics found in <code>kho_truyen</code> folder.</p>
         {% endfor %}
-    </div>
+    </div> -->
 </body>
+
+<script>
+    function renderComics(comicsData) {
+        const gridContainer = document.getElementById('comic-grid');
+
+        // Clear the current grid
+        // Xóa lưới hiện tại
+        gridContainer.innerHTML = '';
+
+
+        if (comicsData.length === 0) {
+            gridContainer.innerHTML = '<p>No comics found in <code>kho_truyen</code> folder.</p>';
+            return;
+        }
+
+        // Build the new HTML string for all comics
+        // Xây dựng chuỗi HTML mới cho tất cả truyện tranh
+        let htmlContent = '';
+
+        comicsData.forEach(comic => {
+
+            let displayChapter = (comic.highest_chapter % 1 === 0)
+                ? parseInt(comic.highest_chapter)
+                : comic.highest_chapter;
+
+            // Note: JS cannot run Flask's url_for(). You must build the URL manually.
+            // Change '/view/' to match whatever your actual route URL is!
+            // Lưu ý: JS không thể chạy url_for() của Flask. Bạn phải tự tạo URL.
+            let comicUrl = `/comic/${encodeURIComponent(comic.name)}`;
+
+            // Append the exact HTML structure with your CSS classes
+            // Thêm cấu trúc HTML chính xác với các lớp CSS của bạn
+            htmlContent += `
+            <a href="${comicUrl}" class="card">
+                <img src="/static/kho_truyen_local/${comic.name}/thumbnail.jpg" alt="Cover">
+                <div class="card-content">
+                    <div class="card-title">${comic.display_name}</div>
+                    <div class="latest_chapter"> ${comic.latest_chapter} </div>
+                    <div class="chapter_count"> Chap ${displayChapter}</div>
+                </div>
+            </a>
+        `;
+        });
+
+        // Inject the final HTML into the grid
+        // Đưa HTML cuối cùng vào lưới
+        gridContainer.innerHTML = htmlContent;
+    }
+
+    function sortComics(sortMethod) {
+        fetch(`/api/comics?sort=${sortMethod}`)
+            .then(response => response.json())
+            .then(data => {
+                renderComics(data); // Call the function we just built!
+            })
+            .catch(error => console.error('Error fetching comics:', error));
+    }
+
+    // Load default sorting when page loads
+    // Tải sắp xếp mặc định khi trang vừa tải xong
+    window.onload = () => sortComics('latest');
+</script>
 
 </html>

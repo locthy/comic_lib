@@ -9,7 +9,7 @@ from datetime import datetime
 import threading
 import concurrent.futures
 import bisect
-from ultis import save_or_update_json, get_date_time, get_data_from_response
+from ultis import save_or_update_json, get_date_time, get_chapter_list_from_response
 
 # Khởi tạo (Cần thiết để chạy trên Windows)
 init(autoreset=True)
@@ -428,7 +428,7 @@ def get_chapters(url):
         print(Fore.RED + f"Failed to fetch comic {comic_name}: {response.status_code}")
         return
 
-    result = get_data_from_response(response)
+    result = get_chapter_list_from_response(response)
     return result
 
 

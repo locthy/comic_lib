@@ -4,7 +4,12 @@ import requests
 import json
 import bisect
 from colorama import Fore, Style, init
-from ultis import get_comics, countdown_timer, get_date_time, get_data_from_response
+from ultis import (
+    get_comics,
+    countdown_timer,
+    get_date_time,
+    get_chapter_list_from_response,
+)
 
 init(autoreset=True)
 
@@ -18,7 +23,7 @@ HEADERS = {
 }
 BASE_URL = "https://foxtruyen2.com/"
 CHAPTER_DIFF = 5
-RESET_TIME = 12 * 60 * 60
+RESET_TIME = 1 * 60 * 60
 
 
 def extract_comic_info_with_chapter(url):
@@ -79,7 +84,7 @@ def get_new_chapter():
             )
             return
 
-        detail_data = get_data_from_response(response)
+        detail_data = get_chapter_list_from_response(response)
         new_latest_chapter = float(detail_data[0])
 
         comic_download_list = getListOfDownloadChapter(
