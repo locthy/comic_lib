@@ -6,9 +6,9 @@ import re
 from bs4 import BeautifulSoup
 from colorama import Fore, Style, init
 from datetime import datetime
-import threading
 import concurrent.futures
 import bisect
+from dotenv import load_dotenv
 from ultis import save_or_update_json, get_date_time, get_chapter_list_from_response
 
 # Khởi tạo (Cần thiết để chạy trên Windows)
@@ -16,69 +16,59 @@ init(autoreset=True)
 # --- CONFIGURATION ---
 # Base directory for all downloads
 # KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen")
-KHO_TRUYEN_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "static", "kho_truyen_local"
-)
+load_dotenv()
+KHO_TRUYEN_DIR = os.getenv("KHO_TRUYEN_DIR")
 # Log file for failed downloads
-LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log_fail.json")
-TIME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "time.json")
-AVG_TIME = 0
-
 # Headers derived from your logs (Essential for bypassing bot detection)
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://foxtruyen2.com/",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-}
-BASE_URL = "https://foxtruyen2.com/"
-MAX_RETRIES = 3
+HEADERS = json.loads(os.getenv("HEADERS"))
+BASE_URL = os.getenv("BASE_URL")
 
 
-def log_failure(comic_name, chapter_num):
-    """
-    Logs a failed chapter to log_fail.json in the format:
-    {
-        "comic_name": "1, 2, 5"
-    }
-    """
-    try:
-        data = {}
-        if os.path.exists(LOG_FILE):
-            with open(LOG_FILE, "r", encoding="utf-8") as f:
-                try:
-                    content = f.read().strip()
-                    if content:
-                        data = json.loads(content)
-                except json.JSONDecodeError:
-                    print(
-                        Fore.YELLOW
-                        + "Warning: log_fail.json is corrupted. Starting fresh."
-                    )
-                    data = {}
+# def log_failure(comic_name, chapter_num):
+#     """
+#     Logs a failed chapter to log_fail.json in the format:
+#     {
+#         "comic_name": "1, 2, 5"
+#     }
+#     """
+#     try:
+#         data = {}
+#         if os.path.exists(LOG_FILE):
+#             with open(LOG_FILE, "r", encoding="utf-8") as f:
+#                 try:
+#                     content = f.read().strip()
+#                     if content:
+#                         data = json.loads(content)
+#                 except json.JSONDecodeError:
+#                     print(
+#                         Fore.YELLOW
+#                         + "Warning: log_fail.json is corrupted. Starting fresh."
+#                     )
+#                     data = {}
 
-        # Get existing failures
-        current_fails = data.get(comic_name, "")
-        if current_fails:
-            fail_list = [int(x.strip()) for x in current_fails.split(",") if x.strip()]
-        else:
-            fail_list = []
+#         # Get existing failures
+#         current_fails = data.get(comic_name, "")
+#         if current_fails:
+#             fail_list = [int(x.strip()) for x in current_fails.split(",") if x.strip()]
+#         else:
+#             fail_list = []
 
-        # Add new failure if not exists
-        if chapter_num not in fail_list:
-            fail_list.append(chapter_num)
-            fail_list.sort()
+#         # Add new failure if not exists
+#         if chapter_num not in fail_list:
+#             fail_list.append(chapter_num)
+#             fail_list.sort()
 
-            # Update data
-            data[comic_name] = ", ".join(map(str, fail_list))
+#             # Update data
+#             data[comic_name] = ", ".join(map(str, fail_list))
 
-            # Save back to file
-            with open(LOG_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
+#             # Save back to file
+#             with open(LOG_FILE, "w", encoding="utf-8") as f:
+#                 json.dump(data, f, indent=4)
 
-            print(Fore.RED + f"Logged failure for {comic_name} Chapter {chapter_num}")
+#             print(Fore.RED + f"Logged failure for {comic_name} Chapter {chapter_num}")
 
-    except Exception as e:
-        print(Fore.RED + f"Failed to log failure: {e}")
+#     except Exception as e:
+#         print(Fore.RED + f"Failed to log failure: {e}")
 
 
 def get_cookie():

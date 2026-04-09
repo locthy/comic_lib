@@ -2,3 +2,6 @@ bs4
 colorama
 flask
 datetime
+python-dotenv
+requests
+beautifulsoup4

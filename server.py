@@ -3,16 +3,16 @@ import re
 import argparse
 from flask import Flask, render_template, send_from_directory, abort, jsonify, request
 from ultis import get_comics
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 
 # Configuration
 # BASE_DIR points to "kho_truyen" which contains comic folders
 # BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),"static", "kho_truyen")
-BASE_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "static", "kho_truyen_local"
-)
-PORT = 5000
+load_dotenv()
+BASE_DIR = os.getenv("KHO_TRUYEN_DIR")
+PORT = os.getenv("PORT")
 
 # Ensure base dir exists
 if not os.path.exists(BASE_DIR):
