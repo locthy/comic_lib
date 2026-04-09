@@ -220,16 +220,18 @@ def show_comics(comics_data):
     print(
         f"{Fore.LIGHTCYAN_EX}----------- {Fore.LIGHTYELLOW_EX}{f'Tìm thấy {len(comics_data)} truyện'} {Fore.LIGHTCYAN_EX}-----------{Style.RESET_ALL}"
     )
-    for i, comic in enumerate(comics_data, 1):
+    for i, comic in enumerate(comics_data):
         print(
-            f"{i}. Truyện {Fore.LIGHTGREEN_EX}{comic['name']}{Style.RESET_ALL} {Fore.LIGHTCYAN_EX}| {comic['latest_chapter']}"
+            f"{i + 1}. Truyện {Fore.LIGHTGREEN_EX}{comic['name']}{Style.RESET_ALL} {Fore.LIGHTCYAN_EX}| {comic['latest_chapter']}"
         )
 
     comic_index = int(
         input(
-            Fore.LIGHTYELLOW_EX + "Please choose a comic to install (Example: 1) : "
+            Fore.LIGHTYELLOW_EX + "Please choose a comic to install (0 to reset) : "
         ).strip()
     )
+    if comic_index == 0:
+        return -1
     print(Fore.LIGHTGREEN_EX + f"[Successful] {comics_data[comic_index - 1]['name']}!")
     return comics_data[comic_index - 1]
 
@@ -394,20 +396,21 @@ def download_single_image(img_url, filename, session):
 
             else:
                 # Bắt lỗi HTTP khác (vd: 502 Bad Gateway)
-                print(
-                    f"{Fore.YELLOW}Lần thử {attempt} thất bại (Mã lỗi {img_res.status_code}) cho {img_url}{Style.RESET_ALL}"
-                )
+                if attempt == MAX_RETRIES:
+                    print(
+                        f"{Fore.YELLOW}[ERROR] {img_res.status_code}) {img_url.split("hinhgg.com")[-1]}{Style.RESET_ALL}"
+                    )
 
         except Exception as e:
             # Bắt lỗi mất kết nối mạng (Network timeout)
-            print(
-                f"{Fore.YELLOW}Lần thử {attempt} rớt mạng cho {img_url}: {e}{Style.RESET_ALL}"
-            )
+            if attempt == MAX_RETRIES:
+                print(
+                    f"{Fore.YELLOW}[ERROR] {img_url.split("hinhgg.com")[-1]}: {e}{Style.RESET_ALL}"
+                )
 
         # Nếu code chạy đến đây, nghĩa là đã thất bại.
-        # Chờ 2 giây trước khi thử lại (trừ khi đây là lần thử cuối cùng)
         if attempt < MAX_RETRIES:
-            time.sleep(2)
+            time.sleep(5)
 
     # Nếu vòng lặp chạy xong mà vẫn chưa return, nghĩa là cả 3 lần đều hỏng.
     print(
@@ -522,10 +525,11 @@ def handle_io():
     while True:
         # Get the list of dictionaries of comics data that user search
         comics_data = get_comic()
-        if comics_data:
+        comic_data = show_comics(comics_data)
+        if comic_data != -1:
             break
     # get a comic data in dictionary that user want
-    comic_data = show_comics(comics_data)
+
     comic_url = comic_data["url"]
     # set the latest_chapter: "chuong 67.2" -> "67.2"
     comic_max_chapter = int(float(comic_data["latest_chapter"].strip().split(" ")[-1]))
