@@ -6,78 +6,69 @@ import re
 from bs4 import BeautifulSoup
 from colorama import Fore, Style, init
 from datetime import datetime
-import threading
 import concurrent.futures
-from ultis import save_or_update_json, get_date_time, get_data_from_response
+import bisect
+from dotenv import load_dotenv
+from ultis import save_or_update_json, get_date_time, get_chapter_list_from_response
 
 # Khởi tạo (Cần thiết để chạy trên Windows)
 init(autoreset=True)
 # --- CONFIGURATION ---
 # Base directory for all downloads
 # KHO_TRUYEN_DIR = os.path.join("static", "kho_truyen")
-KHO_TRUYEN_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "static", "kho_truyen_local"
-)
+load_dotenv()
+KHO_TRUYEN_DIR = os.getenv("KHO_TRUYEN_DIR")
 # Log file for failed downloads
-LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log_fail.json")
-TIME_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "time.json")
-AVG_TIME = 0
-
 # Headers derived from your logs (Essential for bypassing bot detection)
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://foxtruyen2.com/",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-}
-BASE_URL = "https://foxtruyen2.com/"
-MAX_RETRIES = 3
+HEADERS = json.loads(os.getenv("HEADERS"))
+BASE_URL = os.getenv("BASE_URL")
 
 
-def log_failure(comic_name, chapter_num):
-    """
-    Logs a failed chapter to log_fail.json in the format:
-    {
-        "comic_name": "1, 2, 5"
-    }
-    """
-    try:
-        data = {}
-        if os.path.exists(LOG_FILE):
-            with open(LOG_FILE, "r", encoding="utf-8") as f:
-                try:
-                    content = f.read().strip()
-                    if content:
-                        data = json.loads(content)
-                except json.JSONDecodeError:
-                    print(
-                        Fore.YELLOW
-                        + "Warning: log_fail.json is corrupted. Starting fresh."
-                    )
-                    data = {}
+# def log_failure(comic_name, chapter_num):
+#     """
+#     Logs a failed chapter to log_fail.json in the format:
+#     {
+#         "comic_name": "1, 2, 5"
+#     }
+#     """
+#     try:
+#         data = {}
+#         if os.path.exists(LOG_FILE):
+#             with open(LOG_FILE, "r", encoding="utf-8") as f:
+#                 try:
+#                     content = f.read().strip()
+#                     if content:
+#                         data = json.loads(content)
+#                 except json.JSONDecodeError:
+#                     print(
+#                         Fore.YELLOW
+#                         + "Warning: log_fail.json is corrupted. Starting fresh."
+#                     )
+#                     data = {}
 
-        # Get existing failures
-        current_fails = data.get(comic_name, "")
-        if current_fails:
-            fail_list = [int(x.strip()) for x in current_fails.split(",") if x.strip()]
-        else:
-            fail_list = []
+#         # Get existing failures
+#         current_fails = data.get(comic_name, "")
+#         if current_fails:
+#             fail_list = [int(x.strip()) for x in current_fails.split(",") if x.strip()]
+#         else:
+#             fail_list = []
 
-        # Add new failure if not exists
-        if chapter_num not in fail_list:
-            fail_list.append(chapter_num)
-            fail_list.sort()
+#         # Add new failure if not exists
+#         if chapter_num not in fail_list:
+#             fail_list.append(chapter_num)
+#             fail_list.sort()
 
-            # Update data
-            data[comic_name] = ", ".join(map(str, fail_list))
+#             # Update data
+#             data[comic_name] = ", ".join(map(str, fail_list))
 
-            # Save back to file
-            with open(LOG_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
+#             # Save back to file
+#             with open(LOG_FILE, "w", encoding="utf-8") as f:
+#                 json.dump(data, f, indent=4)
 
-            print(Fore.RED + f"Logged failure for {comic_name} Chapter {chapter_num}")
+#             print(Fore.RED + f"Logged failure for {comic_name} Chapter {chapter_num}")
 
-    except Exception as e:
-        print(Fore.RED + f"Failed to log failure: {e}")
+#     except Exception as e:
+#         print(Fore.RED + f"Failed to log failure: {e}")
 
 
 def get_cookie():
@@ -219,16 +210,18 @@ def show_comics(comics_data):
     print(
         f"{Fore.LIGHTCYAN_EX}----------- {Fore.LIGHTYELLOW_EX}{f'Tìm thấy {len(comics_data)} truyện'} {Fore.LIGHTCYAN_EX}-----------{Style.RESET_ALL}"
     )
-    for i, comic in enumerate(comics_data, 1):
+    for i, comic in enumerate(comics_data):
         print(
-            f"{i}. Truyện {Fore.LIGHTGREEN_EX}{comic['name']}{Style.RESET_ALL} {Fore.LIGHTCYAN_EX}| {comic['latest_chapter']}"
+            f"{i + 1}. Truyện {Fore.LIGHTGREEN_EX}{comic['name']}{Style.RESET_ALL} {Fore.LIGHTCYAN_EX}| {comic['latest_chapter']}"
         )
 
     comic_index = int(
         input(
-            Fore.LIGHTYELLOW_EX + "Please choose a comic to install (Example: 1) : "
+            Fore.LIGHTYELLOW_EX + "Please choose a comic to install (0 to reset) : "
         ).strip()
     )
+    if comic_index == 0:
+        return -1
     print(Fore.LIGHTGREEN_EX + f"[Successful] {comics_data[comic_index - 1]['name']}!")
     return comics_data[comic_index - 1]
 
@@ -263,7 +256,7 @@ def extract_comic_info(url):
 
 def download_chapter(comic_name, comic_id, chapter_num, comic_data):
 
-    global AVG_TIME
+
     # 1. Chuẩn hóa tên để làm folder (lowercase, underscores)
     comic_folder = comic_name.lower().replace("-", "_")
     # Tên slug dùng cho URL (dashes)
@@ -364,8 +357,6 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
 
         # 5. Thống kê
         total_seconds = time.time() - start_time
-        if success_count > 0:
-            AVG_TIME = (AVG_TIME + float(total_seconds) / int(success_count)) / 2
 
     except Exception as e:
         print(Fore.RED + f"Error: {e} {chapter_num}")
@@ -393,20 +384,21 @@ def download_single_image(img_url, filename, session):
 
             else:
                 # Bắt lỗi HTTP khác (vd: 502 Bad Gateway)
-                print(
-                    f"{Fore.YELLOW}Lần thử {attempt} thất bại (Mã lỗi {img_res.status_code}) cho {img_url}{Style.RESET_ALL}"
-                )
+                if attempt == MAX_RETRIES:
+                    print(
+                        f"{Fore.YELLOW}[ERROR] {img_res.status_code}) {img_url.split("hinhgg.com")[-1]}{Style.RESET_ALL}"
+                    )
 
         except Exception as e:
             # Bắt lỗi mất kết nối mạng (Network timeout)
-            print(
-                f"{Fore.YELLOW}Lần thử {attempt} rớt mạng cho {img_url}: {e}{Style.RESET_ALL}"
-            )
+            if attempt == MAX_RETRIES:
+                print(
+                    f"{Fore.YELLOW}[ERROR] {img_url.split("hinhgg.com")[-1]}: {e}{Style.RESET_ALL}"
+                )
 
         # Nếu code chạy đến đây, nghĩa là đã thất bại.
-        # Chờ 2 giây trước khi thử lại (trừ khi đây là lần thử cuối cùng)
         if attempt < MAX_RETRIES:
-            time.sleep(2)
+            time.sleep(5)
 
     # Nếu vòng lặp chạy xong mà vẫn chưa return, nghĩa là cả 3 lần đều hỏng.
     print(
@@ -427,7 +419,7 @@ def get_chapters(url):
         print(Fore.RED + f"Failed to fetch comic {comic_name}: {response.status_code}")
         return
 
-    result = get_data_from_response(response)
+    result = get_chapter_list_from_response(response)
     return result
 
 
@@ -458,19 +450,29 @@ def get_highest_chapter(comic_name):
     return max(chapter_numbers) if chapter_numbers else 0
 
 
+def getListOfDownloadChapter(startChap, endChapter, listComicChapter):
+    listComicChapter = [float(x) for x in listComicChapter]
+
+    startChapIndex = bisect.bisect_right(listComicChapter, startChap)
+    endChapIndex = bisect.bisect_right(listComicChapter, endChapter)
+    return listComicChapter[startChapIndex:endChapIndex]
+
+
 def download_multi():
     # .map() automatically applies the function to every item in the list
     # .map() tự động áp dụng hàm cho từng phần tử trong danh sách
     start_chap, end_chap, comic_name, comic_id, comic_data, comic_url = handle_io()
     # get the list of downloadable chapters
-    chapter_list = get_chapters(comic_url)[::-1]
+    chapter_list = getListOfDownloadChapter(
+        start_chap, end_chap, get_chapters(comic_url)[::-1]
+    )  # reverse to [1, 2, 3] instead of [3, 2, 1]
     highest_chap = get_highest_chapter(comic_name)
-    if highest_chap > 0:
+    if highest_chap > 0 and not end_chap < highest_chap:
         target_index = -1
 
         # 1. Search for the index of the latest chapter
         # 1. Tìm kiếm chỉ mục của chương mới nhất
-        for index, chap_string in enumerate(chapter_list):
+        for index, chap_string in enumerate(str(chapter_list)):
             # We convert latest_chap to a string to check if it's inside the URL/title
             # Chúng ta chuyển đổi latest_chap thành chuỗi để kiểm tra xem nó có nằm trong URL/tiêu đề không
             if str(highest_chap) in chap_string:
@@ -484,14 +486,19 @@ def download_multi():
             # Chúng ta dùng target_index + 1 để lấy mọi thứ SAU chương mới nhất
             chapter_list = chapter_list[target_index + 1 :]
 
-    for chapter in reversed(chapter_list):
+    for chapter in chapter_list:
         download_chapter(comic_name, comic_id, chapter, comic_data)
 
     date_time = get_date_time()
-    if int(float(chapter_list[0])) - int(float(chapter_list[-1])) == 0:
+    if len(chapter_list) == 0:
         print(
             Fore.LIGHTCYAN_EX
-            + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {chapter_list[0]} "
+            + f"[{date_time}] {Fore.LIGHTYELLOW_EX} There is no new chapter!!"
+        )
+    elif len(chapter_list) == 1:
+        print(
+            Fore.LIGHTCYAN_EX
+            + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX} Chapter {chapter_list[0]}"
         )
     else:
         print(
@@ -501,15 +508,16 @@ def download_multi():
 
 
 def handle_io():
-    global AVG_TIME
+
     comics_data = None
     while True:
         # Get the list of dictionaries of comics data that user search
         comics_data = get_comic()
-        if comics_data:
+        comic_data = show_comics(comics_data)
+        if comic_data != -1:
             break
     # get a comic data in dictionary that user want
-    comic_data = show_comics(comics_data)
+
     comic_url = comic_data["url"]
     # set the latest_chapter: "chuong 67.2" -> "67.2"
     comic_max_chapter = int(float(comic_data["latest_chapter"].strip().split(" ")[-1]))

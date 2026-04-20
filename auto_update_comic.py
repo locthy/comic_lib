@@ -1,10 +1,15 @@
-from truyen import download_chapter, extract_comic_info
+from truyen import download_chapter, extract_comic_info, getListOfDownloadChapter
 import os
 import requests
 import json
-from bs4 import BeautifulSoup
+import bisect
 from colorama import Fore, Style, init
-from ultis import get_comics, countdown_timer, get_date_time, get_data_from_response
+from ultis import (
+    get_comics,
+    countdown_timer,
+    get_date_time,
+    get_chapter_list_from_response,
+)
 
 init(autoreset=True)
 
@@ -21,7 +26,7 @@ CHAPTER_DIFF = 5
 RESET_TIME = 1 * 60 * 60
 
 
-def extract_comic_infoss(url):
+def extract_comic_info_with_chapter(url):
     """
     Extracts comic name and ID from URL.
     @param url: A link to a chapter
@@ -64,7 +69,12 @@ def get_new_chapter():
 
     for comic_data in comics_data:
         url = comic_data["url"]
-        highest_chapter = int(comic_data["highest_chapter"])
+        highest_chapter = float(comic_data["highest_chapter"])
+        latest_chapter = float(str(comic_data["latest_chapter"].split(" ")[-1]))
+
+        if highest_chapter != latest_chapter:
+            continue
+
         comic_name, comic_id = extract_comic_info(url)
 
         response = session.get(url, headers=HEADERS, timeout=15)
@@ -74,27 +84,37 @@ def get_new_chapter():
             )
             return
 
-        detail_data = get_data_from_response(response)
-        latest_chapter = len(detail_data)
+        detail_data = get_chapter_list_from_response(response)
+        new_latest_chapter = float(detail_data[0])
 
-        comic_dic = {"latest_chapter": f"Chương {latest_chapter}"}
-        diff = latest_chapter - highest_chapter
+        comic_download_list = getListOfDownloadChapter(
+            latest_chapter, new_latest_chapter, detail_data[::-1]
+        )
+        if new_latest_chapter % 1 == 0:
+            new_latest_chapter = int(new_latest_chapter)
 
-        if 0 < diff < 5:
-            for chapter in range(highest_chapter + 1, latest_chapter + 1):
-                download_chapter(comic_name, comic_id, chapter, comic_dic)
+        if latest_chapter % 1 == 0:
+            latest_chapter = int(latest_chapter)
 
-            date_time = get_date_time()
-            if latest_chapter - highest_chapter == 1:
-                print(
-                    Fore.LIGHTCYAN_EX
-                    + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {highest_chapter + 1} "
-                )
-            else:
-                print(
-                    Fore.LIGHTCYAN_EX
-                    + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {highest_chapter + 1} to {latest_chapter}"
-                )
+        comic_dic = {"latest_chapter": f"Chương {new_latest_chapter}"}
+
+        if len(comic_download_list) == 0:
+            continue
+
+        for chapter in comic_download_list:
+            download_chapter(comic_name, comic_id, chapter, comic_dic)
+
+        date_time = get_date_time()
+        if new_latest_chapter - highest_chapter == 1:
+            print(
+                Fore.LIGHTCYAN_EX
+                + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| Chapter {new_latest_chapter} "
+            )
+        else:
+            print(
+                Fore.LIGHTCYAN_EX
+                + f"[{date_time}] Download{Style.RESET_ALL} {Fore.LIGHTGREEN_EX}{comic_name} {Fore.LIGHTYELLOW_EX}| From chapter {latest_chapter + 1} to {new_latest_chapter}"
+            )
 
 
 def run():

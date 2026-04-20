@@ -1,0 +1,18 @@
+A) Comic downloader:
+    - Get comic list by searching names in other comic web.
+    - After selecting comic, choose the start chapter and end chapter for downloading.
+    - Download the comic data: description, chapter time download, author, ...
+    - Ensure the download comic pages by two sum check.
+
+B) Server comic:
+    - A homepage contains comics thumbnails and a search bar, sort bar (by genre, comic chaps, latest update) ascending, descending.
+    - Having the authentication and authorization for comments and rating.	
+    - In chapter list, there is a description, tags, state, rating, choosing chapter.
+    - In chapter, the page contains pages comic and in the end is the comment section. 
+
+C) Database:
+    - Store comics data.
+
+Non-functional requirement:
+    - The server must response under 1 second.
+
