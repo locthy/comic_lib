@@ -256,7 +256,7 @@ def extract_comic_info(url):
 
 def download_chapter(comic_name, comic_id, chapter_num, comic_data):
 
-    global AVG_TIME
+
     # 1. Chuẩn hóa tên để làm folder (lowercase, underscores)
     comic_folder = comic_name.lower().replace("-", "_")
     # Tên slug dùng cho URL (dashes)
@@ -357,8 +357,6 @@ def download_chapter(comic_name, comic_id, chapter_num, comic_data):
 
         # 5. Thống kê
         total_seconds = time.time() - start_time
-        if success_count > 0:
-            AVG_TIME = (AVG_TIME + float(total_seconds) / int(success_count)) / 2
 
     except Exception as e:
         print(Fore.RED + f"Error: {e} {chapter_num}")
@@ -510,7 +508,7 @@ def download_multi():
 
 
 def handle_io():
-    global AVG_TIME
+
     comics_data = None
     while True:
         # Get the list of dictionaries of comics data that user search
